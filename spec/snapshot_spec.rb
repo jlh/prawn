@@ -81,9 +81,47 @@ describe "Prawn::Document#transaction" do
       page_content.identifier.should == old_page_content_id
     end
 
+  end
+
+  it "page object should refer to the page_content object after restore" do
+
+    Prawn::Document.new do
+      transaction do
+        start_new_page
+        rollback
+      end
+
+      # should be the exact same object, not a clone
+      current_page.data[:Contents].should == page_content
+    end
+
+  end
+  
+  describe "with a stamp dictionary present" do
+
+    it "should properly commit if no error is raised" do
+      pdf = Prawn::Document.new do
+        create_stamp("test_stamp") { text "This is shown", :at => [0,0] }
+        transaction do
+          stamp("test_stamp")
+        end
+      end
+      pdf.render.should =~ /\/Stamp1 Do/
+    end
+
+    it "should properly rollback when #rollback is called" do
+      pdf = Prawn::Document.new do
+        create_stamp("test_stamp") { text "This is not shown", :at => [0,0] }
+
+        transaction do
+          stamp("test_stamp")
+          rollback
+        end
+      end
+      pdf.render.should.not =~ /\/Stamp1 Do/
+    end 
 
   end
 
 end
 
-  

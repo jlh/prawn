@@ -14,7 +14,7 @@ module Prawn
     #
     # A bounding box serves two important purposes:
     # * Provide bounds for flowing text, starting at a given point
-    # * Translate the origin (0,0) for graphics primitives.
+    # * Translate the origin (0,0) for graphics primitives
     # 
     # ==Positioning
     # 
@@ -27,17 +27,17 @@ module Prawn
     # * Bounding box 100pt x 100pt in the absolute bottom left of the 
     #   containing box:
     # 
-    #  pdf.bounding_box([0,100], :width => 100, :height => 100)
-    #    stroke_bounds
-    #  end
+    #   pdf.bounding_box([0,100], :width => 100, :height => 100)
+    #     stroke_bounds
+    #   end
     # 
     # * Bounding box 200pt x 400pt high in the center of the page:
     # 
-    #  x_pos = ((bounds.width / 2) - 150)
-    #  y_pos = ((bounds.height / 2) + 200)
-    #  pdf.bounding_box([x_pos, y_pos], :width => 300, :height => 400) do
-    #    stroke_bounds
-    #  end
+    #   x_pos = ((bounds.width / 2) - 150)
+    #   y_pos = ((bounds.height / 2) + 200)
+    #   pdf.bounding_box([x_pos, y_pos], :width => 300, :height => 400) do
+    #     stroke_bounds
+    #   end
     #
     # ==Flowing Text
     #
@@ -122,8 +122,8 @@ module Prawn
     # ==Stretchyness
     # 
     # If you do not specify a height to a bounding box, it will become stretchy
-    # and its height will be calculated according to the last drawing position
-    # within the bounding box:
+    # and its height will be calculated automatically as you stretch the box
+    # downwards.
     # 
     #  pdf.bounding_box([100,400], :width => 400) do
     #    pdf.text("The height of this box is #{pdf.bounds.height}")
@@ -185,9 +185,11 @@ module Prawn
       user_block.call   
       self.y = @bounding_box.absolute_bottom unless options[:hold_position]
 
-      @bounding_box = parent_box 
+      created_box, @bounding_box = @bounding_box, parent_box
+
+      return created_box
     end   
- 
+
     # Low level layout helper that simplifies coordinate math.
     #
     # See Prawn::Document#bounding_box for a description of what this class
@@ -369,8 +371,11 @@ module Prawn
       # the box to the current drawing position.
       #
       def height  
-        @height || absolute_top - @parent.y
+        return @height if @height
+        @stretched_height = [(absolute_top - @parent.y), @stretched_height.to_f].max
       end    
+
+      alias_method :update_height, :height
        
       # Returns +false+ when the box has a defined height, +true+ when the height
       # is being calculated on the fly based on the current vertical position.

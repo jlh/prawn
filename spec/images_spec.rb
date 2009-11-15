@@ -24,7 +24,7 @@ describe "the image() function" do
   it "should return the image info object" do
     info =  @pdf.image(@filename)
     
-    assert info.kind_of?(Prawn::Images::JPG)
+    info.should.be.kind_of(Prawn::Images::JPG)
     
     info.height.should == 453
   end
@@ -66,6 +66,7 @@ describe "the image() function" do
       @pdf.y.should < @y
     end
   end
+
   describe ":at option" do
     it "should not move text position" do
       @y = @pdf.y

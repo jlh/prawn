@@ -11,6 +11,14 @@ describe "The cursor" do
     pdf.y = 300
     pdf.cursor.should == pdf.y - pdf.bounds.absolute_bottom 
   end
+
+  it "should be able to move relative to the bottom margin" do
+    pdf = Prawn::Document.new
+    pdf.move_cursor_to(10)
+
+    pdf.cursor.should == 10
+    pdf.y.should == pdf.cursor + pdf.bounds.absolute_bottom
+  end
 end 
 
 describe "when generating a document from a subclass" do
@@ -18,7 +26,7 @@ describe "when generating a document from a subclass" do
     custom_document = Class.new(Prawn::Document)
     custom_document.generate(Tempfile.new("generate_test").path) do |e| 
       e.class.should == custom_document
-      assert e.kind_of?(Prawn::Document)
+      e.should.be.kind_of(Prawn::Document)
     end
   end
 end
@@ -66,16 +74,14 @@ describe "When beginning each new page" do
 
 end
 
-describe "When ending each page" do
+describe "Document compression" do
 
   it "should not compress the page content stream if compression is disabled" do
 
     pdf = Prawn::Document.new(:compress => false)
-    content_stub = pdf.ref!({})
-    content_stub.stubs(:compress_stream).returns(true)
-    content_stub.expects(:compress_stream).never
+    pdf.page_content.stubs(:compress_stream).returns(true)
+    pdf.page_content.expects(:compress_stream).never
 
-    pdf.instance_variable_set("@page_content", content_stub.identifier)
     pdf.text "Hi There" * 20
     pdf.render
   end
@@ -83,11 +89,9 @@ describe "When ending each page" do
   it "should compress the page content stream if compression is enabled" do
 
     pdf = Prawn::Document.new(:compress => true)
-    content_stub = pdf.ref!({})
-    content_stub.stubs(:compress_stream).returns(true)
-    content_stub.expects(:compress_stream).once
+    pdf.page_content.stubs(:compress_stream).returns(true)
+    pdf.page_content.expects(:compress_stream).once
 
-    pdf.instance_variable_set("@page_content", content_stub.identifier)
     pdf.text "Hi There" * 20
     pdf.render
   end
@@ -104,6 +108,23 @@ describe "When ending each page" do
   end 
 
 end                                 
+
+describe "When reopening pages" do
+  it "should modify the content stream size" do
+    @pdf = Prawn::Document.new do |pdf|
+      pdf.text "Page 1"
+      pdf.start_new_page
+      pdf.text "Page 2"
+      pdf.go_to_page 0
+      pdf.text "More for page 1"
+    end
+    
+    # MalformedPDFError raised if content stream actual length does not match
+    # dictionary length
+    lambda{ PDF::Inspector::Page.analyze(@pdf.render) }.
+      should.not.raise(PDF::Reader::MalformedPDFError)
+  end
+end
 
 describe "When setting page size" do
   it "should default to LETTER" do
@@ -168,13 +189,13 @@ describe "The group() feature" do
   end
 
   it "should raise CannotGroup if the content is too tall" do
-    assert_raises(Prawn::Document::CannotGroup) do
+    lambda {
       Prawn::Document.new do
         group do
           100.times { text "Too long" }
         end
       end.render
-    end
+    }.should.raise(Prawn::Document::CannotGroup)
   end
 
   it "should group within individual column boxes" do
@@ -204,6 +225,22 @@ describe "The render() feature" do
       str = @pdf.render
       str.encoding.to_s.should == "ASCII-8BIT"
     end
+  end
+
+  it "should trigger before_render callbacks just before rendering" do
+    pdf = Prawn::Document.new
+    
+    seq = sequence("callback_order")
+
+    # Verify the order: finalize -> fire callbacks -> render body
+    pdf.expects(:finalize_all_page_contents).in_sequence(seq)
+    trigger = mock()
+    trigger.expects(:fire).in_sequence(seq)
+    pdf.expects(:render_body).in_sequence(seq)
+
+    pdf.before_render{ trigger.fire }
+
+    pdf.render
   end
 end
 
